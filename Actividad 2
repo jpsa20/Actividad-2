@@ -1,151 +1,226 @@
-%Limpieza de pantalla
+%% Limpieza del entorno
 clear all
 close all
 clc
 
-%Declaración de variables simbólicas
-syms th1(t) th2(t) t l1 l2
+%% Declaración de variables simbólicas para cada robot
+% Robot Planar 
+syms alpha1_pl(t) alpha2_pl(t) alpha3_pl(t) t d1_pl d2_pl d3_pl
 
-%Configuración del robot, 0 para junta rotacional, 1 para junta prismática
-RP=[0 0];
+% Robot Antropomórfico 
+syms beta1_ant(t) bt2_ant(t) bt3_ant(t) t d1_ant d2_ant d3_ant
 
-%Creamos el vector de coordenadas articulares
-Q= [th1, th2];
-disp('Coordenadas generalizadas');
-pretty (Q);
+%% Configuración de las juntas (0 indica junta rotacional)
+JointType_pl = [0 0 0];
+JointType_ant = [0 0 0];
 
-%Creamos el vector de velocidades generalizadas
-Qp= diff(Q, t);
-disp('Velocidades generalizadas');
-pretty (Qp);
-%Número de grado de libertad del robot
-GDL= size(RP,2);
-GDL_str= num2str(GDL);
+%% Vectores de coordenadas articulares y sus derivadas
+Q_pl = [alpha1_pl, alpha2_pl, alpha3_pl];
+Q_ant = [beta1_ant, bt2_ant, bt3_ant];
 
-%Junta 1 
-%Posición de la junta 1 respecto a 0
-P(:,:,1)= [l1*cos(th1); l1*sin(th1);0];
-%Matriz de rotación de la junta 1 respecto a 0
-R(:,:,1)= [cos(th1) -sin(th1)  0;
-           sin(th1)  cos(th1)  0;
-           0         0         1];
+Qp_pl = diff(Q_pl, t);
+Qp_ant = diff(Q_ant, t);
 
+%% Número de grados de libertad (3 GDL para ambos robots)
+DOF = size(JointType_pl,2);
 
-%Junta 2
-%Posición de la junta 1 respecto a 0
-P(:,:,2)= [l2*cos(th2); l2*sin(th2);0];
-%Matriz de rotación de la junta 1 respecto a 0
-R(:,:,2)= [cos(th2) -sin(th2)  0;
-           sin(th2)  cos(th2)  0;
-           0         0         1];
+%% ==================== ROBOT PLANAR DE 3 GDL ====================
 
-%Creamos un vector de ceros
-Vector_Zeros= zeros(1, 3);
+%% Transformación Local (Planar)
+% Cada eslabón: rotación sobre z y traslación a lo largo de x
+P_pl(:,:,1) = [d1_pl; 0; 0];
+R_pl(:,:,1) = [cos(alpha1_pl) -sin(alpha1_pl) 0;
+              sin(alpha1_pl)  cos(alpha1_pl) 0;
+              0              0              1];
 
-%Inicializamos las matrices de transformación Homogénea locales
-A(:,:,GDL)=simplify([R(:,:,GDL) P(:,:,GDL); Vector_Zeros 1]);
-%Inicializamos las matrices de transformación Homogénea globales
-T(:,:,GDL)=simplify([R(:,:,GDL) P(:,:,GDL); Vector_Zeros 1]);
-%Inicializamos las posiciones vistas desde el marco de referencia inercial
-PO(:,:,GDL)= P(:,:,GDL); 
-%Inicializamos las matrices de rotación vistas desde el marco de referencia inercial
-RO(:,:,GDL)= R(:,:,GDL); 
-%Inicializamos las INVERSAS de las matrices de rotación vistas desde el marco de referencia inercial
-RO_inv(:,:,GDL)= R(:,:,GDL); 
+P_pl(:,:,2) = [d2_pl; 0; 0];
+R_pl(:,:,2) = [cos(alpha2_pl) -sin(alpha2_pl) 0;
+              sin(alpha2_pl)  cos(alpha2_pl) 0;
+              0              0              1];
 
-for i = 1:GDL
-    i_str= num2str(i);
-    disp(strcat('Matriz de Transformación local A', i_str));
-    A(:,:,i)=simplify([R(:,:,i) P(:,:,i); Vector_Zeros 1]);
-    pretty (A(:,:,i));
+P_pl(:,:,3) = [d3_pl; 0; 0];
+R_pl(:,:,3) = [cos(alpha3_pl) -sin(alpha3_pl) 0;
+              sin(alpha3_pl)  cos(alpha3_pl) 0;
+              0              0              1];
 
-   %Globales
+ZerosVec = zeros(1,3);
+
+% Inicialización de la matriz de transformación local y global
+A_pl(:,:,DOF) = simplify([R_pl(:,:,DOF) P_pl(:,:,DOF); ZerosVec 1]);
+T_pl(:,:,DOF) = simplify([R_pl(:,:,DOF) P_pl(:,:,DOF); ZerosVec 1]);
+Pos_pl(:,:,DOF) = P_pl(:,:,DOF); % Posición local
+Rot_pl(:,:,DOF) = R_pl(:,:,DOF); % Orientación local
+
+for i = 1:DOF
+    A_pl(:,:,i) = simplify([R_pl(:,:,i) P_pl(:,:,i); ZerosVec 1]);
     try
-       T(:,:,i)= T(:,:,i-1)*A(:,:,i);
+        T_pl(:,:,i) = T_pl(:,:,i-1)*A_pl(:,:,i);
     catch
-       T(:,:,i)= A(:,:,i);
+        T_pl(:,:,i) = A_pl(:,:,i);
     end
-    disp(strcat('Matriz de Transformación global T', i_str));
-    T(:,:,i)= simplify(T(:,:,i));
-    pretty(T(:,:,i))
-
-    RO(:,:,i)= T(1:3,1:3,i);
-    RO_inv(:,:,i)= transpose(RO(:,:,i));
-    PO(:,:,i)= T(1:3,4,i);
-    %pretty(RO(:,:,i));
-    %pretty(RO_inv(:,:,i));
-    %pretty(PO(:,:,i));
+    disp(['Matriz de Transformación global T_pl', num2str(i), ':'])
+    T_pl(:,:,i) = simplify(T_pl(:,:,i));
+    pretty(T_pl(:,:,i))
+    
+    Rot_pl(:,:,i) = T_pl(1:3,1:3,i);
+    Pos_pl(:,:,i) = T_pl(1:3,4,i);
 end
 
-%Calculamos la matriz de transformación del marco de referencia inercial
-%visto desde el actuador final
-% disp(strcat('Matriz de Transformación T', GDL_str,'_O calculada de forma manual'));
-% RF_O=RO_inv(:,:,GDL);
-% PF_O=-RF_O*PO(:,:,GDL);
-% TF_O= simplify([RF_O PF_O; Vector_Zeros 1]);
-% pretty(TF_O);   
+%% Jacobiano y Velocidades (Planar)
+% Jacobiano lineal diferencial
+Jv11_pl = functionalDerivative(Pos_pl(1,1,DOF), alpha1_pl);
+Jv12_pl = functionalDerivative(Pos_pl(1,1,DOF), alpha2_pl);
+Jv13_pl = functionalDerivative(Pos_pl(1,1,DOF), alpha3_pl);
 
-%disp(strcat('Matriz de Transformación T', GDL_str,'_O calculada de forma auntomática'));
-%pretty(simplify(inv(T(:,:,GDL))));
+Jv21_pl = functionalDerivative(Pos_pl(2,1,DOF), alpha1_pl);
+Jv22_pl = functionalDerivative(Pos_pl(2,1,DOF), alpha2_pl);
+Jv23_pl = functionalDerivative(Pos_pl(2,1,DOF), alpha3_pl);
 
+Jv31_pl = functionalDerivative(Pos_pl(3,1,DOF), alpha1_pl);
+Jv32_pl = functionalDerivative(Pos_pl(3,1,DOF), alpha2_pl);
+Jv33_pl = functionalDerivative(Pos_pl(3,1,DOF), alpha3_pl);
 
-%Calculamos el jacobiano lineal de forma diferencial
-disp('Jacobiano lineal obtenido de forma diferencial');
-%Derivadas parciales de x respecto a th1 y th2
-Jv11= functionalDerivative(PO(1,1,GDL), th1);
-Jv12= functionalDerivative(PO(1,1,GDL), th2);
-%Derivadas parciales de y respecto a th1 y th2
-Jv21= functionalDerivative(PO(2,1,GDL), th1);
-Jv22= functionalDerivative(PO(2,1,GDL), th2);
-%Derivadas parciales de z respecto a th1 y th2
-Jv31= functionalDerivative(PO(3,1,GDL), th1);
-Jv32= functionalDerivative(PO(3,1,GDL), th2);
+Jv_diff_pl = simplify([Jv11_pl Jv12_pl Jv13_pl;
+                       Jv21_pl Jv22_pl Jv23_pl;
+                       Jv31_pl Jv32_pl Jv33_pl]);
+disp('Jacobiano lineal obtenido de forma diferencial (Planar):')
+pretty(Jv_diff_pl)
 
-%Creamos la matríz del Jacobiano lineal
-jv_d=simplify([Jv11 Jv12;
-              Jv21 Jv22;
-              Jv31 Jv32]);
-pretty(jv_d);
+% Jacobiano analítico
+Jv_anal_pl(:,DOF) = Pos_pl(:,:,DOF);
+Jw_anal_pl(:,DOF) = Pos_pl(:,:,DOF);
 
-
-%Calculamos el jacobiano lineal de forma analítica
-Jv_a(:,GDL)=PO(:,:,GDL);
-Jw_a(:,GDL)=PO(:,:,GDL);
-
-for k= 1:GDL
-    if RP(k)==0 %Casos: articulación rotacional
-       %Para las juntas de revolución
+for k = 1:DOF
+    if JointType_pl(k)==0
         try
-            Jv_a(:,k)= cross(RO(:,3,k-1), PO(:,:,GDL)-PO(:,:,k-1));
-            Jw_a(:,k)= RO(:,3,k-1);
+            Jv_anal_pl(:,k) = cross(Rot_pl(:,3,k-1), Pos_pl(:,:,DOF) - Pos_pl(:,:,k-1));
+            Jw_anal_pl(:,k) = Rot_pl(:,3,k-1);
         catch
-            Jv_a(:,k)= cross([0,0,1], PO(:,:,GDL));
-            Jw_a(:,k)=[0,0,1];
+            Jv_anal_pl(:,k) = cross([0,0,1], Pos_pl(:,:,DOF));
+            Jw_anal_pl(:,k) = [0,0,1];
         end
-        
-        %Para las juntas prismáticas
-     elseif RP(k)==1 %Casos: articulación prismática
-%         
+    else
         try
-            Jv_a(:,k)= RO(:,3,k-1);
+            Jv_anal_pl(:,k) = Rot_pl(:,3,k-1);
         catch
-            Jv_a(:,k)=[0,0,1];
+            Jv_anal_pl(:,k) = [0,0,1];
         end
-            Jw_a(:,k)=[0,0,0];
-     end
- end    
+        Jw_anal_pl(:,k) = [0,0,0];
+    end
+end
+Jv_anal_pl = simplify(Jv_anal_pl);
+Jw_anal_pl = simplify(Jw_anal_pl);
 
-Jv_a= simplify (Jv_a);
-Jw_a= simplify (Jw_a);
-disp('Jacobiano lineal obtenido de forma analítica');
-pretty (Jv_a);
-disp('Jacobiano ángular obtenido de forma analítica');
-pretty (Jw_a);
+disp('Jacobiano analítico obtenido (Planar) - Lineal:')
+pretty(Jv_anal_pl)
+disp('Jacobiano analítico obtenido (Planar) - Angular:')
+pretty(Jw_anal_pl)
 
+% Velocidades del efector final (Planar)
+Vel_lin_pl = simplify(Jv_anal_pl * Qp_pl.');
+disp('Velocidad lineal obtenida (Planar):')
+pretty(Vel_lin_pl)
 
-disp('Velocidad lineal obtenida mediante el Jacobiano lineal');
-V=simplify (Jv_a*Qp');
-pretty(V);
-disp('Velocidad angular obtenida mediante el Jacobiano angular');
-W=simplify (Jw_a*Qp');
-pretty(W);
+Vel_ang_pl = simplify(Jw_anal_pl * Qp_pl.');
+disp('Velocidad angular obtenida (Planar):')
+pretty(Vel_ang_pl)
+
+%% ==================== ROBOT ANTROPOMÓRFICO DE 3 GDL ====================
+
+%% Transformación Local (Antropomórfico)
+% Para la primera articulación: traslación a lo largo de z y rotación en función de beta1_ant
+P_ant(:,:,1) = [0; 0; d1_ant];
+R_ant(:,:,1) = [cos(beta1_ant)  0  sin(beta1_ant);
+                sin(beta1_ant)  0 -cos(beta1_ant);
+                0               1  0];
+
+% Para las articulaciones 2 y 3: traslación en el plano XY
+P_ant(:,:,2) = [d2_ant*cos(bt2_ant); d2_ant*sin(bt2_ant); 0];
+R_ant(:,:,2) = [cos(bt2_ant) -sin(bt2_ant) 0;
+                sin(bt2_ant)  cos(bt2_ant) 0;
+                0              0              1];
+
+P_ant(:,:,3) = [d3_ant*cos(bt3_ant); d3_ant*sin(bt3_ant); 0];
+R_ant(:,:,3) = [cos(bt3_ant) -sin(bt3_ant) 0;
+                sin(bt3_ant)  cos(bt3_ant) 0;
+                0              0              1];
+
+% Inicialización de la matriz de transformación local y global
+A_ant(:,:,DOF) = simplify([R_ant(:,:,DOF) P_ant(:,:,DOF); ZerosVec 1]);
+T_ant(:,:,DOF) = simplify([R_ant(:,:,DOF) P_ant(:,:,DOF); ZerosVec 1]);
+Pos_ant(:,:,DOF) = P_ant(:,:,DOF);
+Rot_ant(:,:,DOF) = R_ant(:,:,DOF);
+
+for i = 1:DOF
+    A_ant(:,:,i) = simplify([R_ant(:,:,i) P_ant(:,:,i); ZerosVec 1]);
+    try
+        T_ant(:,:,i) = T_ant(:,:,i-1)*A_ant(:,:,i);
+    catch
+        T_ant(:,:,i) = A_ant(:,:,i);
+    end
+    disp(['Matriz de Transformación global T_ant', num2str(i), ':'])
+    T_ant(:,:,i) = simplify(T_ant(:,:,i));
+    pretty(T_ant(:,:,i))
+    
+    Rot_ant(:,:,i) = T_ant(1:3,1:3,i);
+    Pos_ant(:,:,i) = T_ant(1:3,4,i);
+end
+
+%% Jacobiano y Velocidades (Antropomórfico)
+% Jacobiano lineal diferencial
+Jv11_ant = functionalDerivative(Pos_ant(1,1,DOF), beta1_ant);
+Jv12_ant = functionalDerivative(Pos_ant(1,1,DOF), bt2_ant);
+Jv13_ant = functionalDerivative(Pos_ant(1,1,DOF), bt3_ant);
+
+Jv21_ant = functionalDerivative(Pos_ant(2,1,DOF), beta1_ant);
+Jv22_ant = functionalDerivative(Pos_ant(2,1,DOF), bt2_ant);
+Jv23_ant = functionalDerivative(Pos_ant(2,1,DOF), bt3_ant);
+
+Jv31_ant = functionalDerivative(Pos_ant(3,1,DOF), beta1_ant);
+Jv32_ant = functionalDerivative(Pos_ant(3,1,DOF), bt2_ant);
+Jv33_ant = functionalDerivative(Pos_ant(3,1,DOF), bt3_ant);
+
+Jv_diff_ant = simplify([Jv11_ant Jv12_ant Jv13_ant;
+                        Jv21_ant Jv22_ant Jv23_ant;
+                        Jv31_ant Jv32_ant Jv33_ant]);
+disp('Jacobiano lineal obtenido de forma diferencial (Antropomórfico):')
+pretty(Jv_diff_ant)
+
+% Jacobiano analítico
+Jv_anal_ant(:,DOF) = Pos_ant(:,:,DOF);
+Jw_anal_ant(:,DOF) = Pos_ant(:,:,DOF);
+for k = 1:DOF
+    if JointType_ant(k)==0
+        try
+            Jv_anal_ant(:,k) = cross(Rot_ant(:,3,k-1), Pos_ant(:,:,DOF) - Pos_ant(:,:,k-1));
+            Jw_anal_ant(:,k) = Rot_ant(:,3,k-1);
+        catch
+            Jv_anal_ant(:,k) = cross([0,0,1], Pos_ant(:,:,DOF));
+            Jw_anal_ant(:,k) = [0,0,1];
+        end
+    else
+        try
+            Jv_anal_ant(:,k) = Rot_ant(:,3,k-1);
+        catch
+            Jv_anal_ant(:,k) = [0,0,1];
+        end
+        Jw_anal_ant(:,k) = [0,0,0];
+    end
+end
+Jv_anal_ant = simplify(Jv_anal_ant);
+Jw_anal_ant = simplify(Jw_anal_ant);
+
+disp('Jacobiano analítico obtenido (Antropomórfico) - Lineal:')
+pretty(Jv_anal_ant)
+disp('Jacobiano analítico obtenido (Antropomórfico) - Angular:')
+pretty(Jw_anal_ant)
+
+% Velocidades del efector final (Antropomórfico)
+Vel_lin_ant = simplify(Jv_anal_ant * Qp_ant.');
+disp('Velocidad lineal obtenida (Antropomórfico):')
+pretty(Vel_lin_ant)
+
+Vel_ang_ant = simplify(Jw_anal_ant * Qp_ant.');
+disp('Velocidad angular obtenida (Antropomórfico):')
+pretty(Vel_ang_ant)
+
